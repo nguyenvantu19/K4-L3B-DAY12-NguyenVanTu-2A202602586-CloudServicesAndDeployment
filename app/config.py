@@ -40,9 +40,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # TODO (CP1): khai báo 6 trường theo bảng trên, ví dụ:
-    #     port: int = 8000
-    #     agent_api_key: str
+    port: int = 8000  # Cổng HTTP mặc định; biến PORT có thể ghi đè giá trị này.
+    agent_api_key: str  # Secret bắt buộc; thiếu AGENT_API_KEY thì Pydantic báo lỗi ngay khi khởi động.
+    redis_url: str = "redis://localhost:6379/0"  # Địa chỉ Redis mặc định cho môi trường phát triển.
+    rate_limit_per_minute: int = 10  # Giới hạn số request mỗi phút cho từng người dùng.
+    monthly_budget_usd: float = 10.0  # Ngân sách mặc định mỗi tháng, tính theo USD.
+    log_level: str = "INFO"  # Mức log mặc định; sẽ chuẩn hóa khi ghi từng sự kiện.
 
 
 @lru_cache(maxsize=1)

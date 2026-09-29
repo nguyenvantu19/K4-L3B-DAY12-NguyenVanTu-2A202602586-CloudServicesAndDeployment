@@ -34,4 +34,12 @@ def log_event(event: str, level: str = "info", **fields) -> str:
         >>> log_event("ask_completed", user_id="sv01", cost_usd=0.0001)
         '{"event": "ask_completed", "level": "info", "timestamp": "...", ...}'
     """
-    raise NotImplementedError("TODO (CP1): cài đặt log_event")
+    record = {  # Tạo cấu trúc có thể được hệ thống log đọc như một JSON object.
+        "event": event,  # Ghi tên sự kiện do nơi gọi truyền vào.
+        "level": level.lower(),  # Chuẩn hóa mức log về chữ thường.
+        "timestamp": utc_now_iso(),  # Gắn thời điểm hiện tại theo ISO-8601/UTC.
+        **fields,  # Giữ lại các dữ liệu bổ sung như user_id hoặc cost_usd.
+    }  # Kết thúc bản ghi log.
+    line = json.dumps(record, ensure_ascii=False)  # Mã hóa thành JSON một dòng và giữ nguyên ký tự Unicode.
+    print(line, file=sys.stdout)  # Gửi dòng log ra stdout để nền tảng triển khai thu thập.
+    return line  # Trả cùng chuỗi đã in để caller hoặc test có thể sử dụng.

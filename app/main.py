@@ -87,7 +87,13 @@ def health():
     lời câu hỏi "có cần restart container này không?". Nếu nó phụ thuộc
     Redis, Redis chết một nhịp là cả cụm container bị restart theo.
     """
-    raise NotImplementedError("TODO (CP1/CP4): cài đặt /health")
+    if lifecycle.shutting_down:  # Đánh dấu instance không còn nhận traffic khi đang tắt (hành vi CP4).
+        return JSONResponse(status_code=503, content={"status": "shutting_down"})  # Báo probe thất bại trong lúc dừng.
+    return {  # Trả thông tin liveness mà không gọi Redis hay dependency bên ngoài.
+        "status": "ok",  # Cho biết process vẫn phục vụ bình thường.
+        "service": SERVICE_NAME,  # Nhận diện service đang trả lời probe.
+        "version": SERVICE_VERSION,  # Cho biết phiên bản ứng dụng đang chạy.
+    }  # FastAPI tự mã hóa dict thành JSON với HTTP 200.
 
 
 @app.get("/ready")
@@ -102,7 +108,11 @@ def ready(store: ConversationStore = Depends(get_store)):
     Khác /health ở chỗ: endpoint này ĐƯỢC PHÉP kiểm tra dependency. Load
     balancer dùng nó để quyết định có đẩy request vào instance này không.
     """
-    raise NotImplementedError("TODO (CP4): cài đặt /ready")
+    if lifecycle.shutting_down:  # Instance đang dừng và không nên nhận request mới.
+        return JSONResponse(status_code=503, content={"status": "shutting_down"})  # Báo không sẵn sàng trong lúc shutdown.
+    if not store.ping():  # Kiểm tra Redis vì /ready đánh giá khả năng phục vụ request thật.
+        return JSONResponse(status_code=503, content={"status": "not ready", "redis": False})  # Báo dependency Redis chưa kết nối được.
+    return {"status": "ready", "redis": True}  # Báo instance có thể nhận traffic khi Redis hoạt động.
 
 
 # ─────────────────────────────────────────────────────────────
@@ -145,7 +155,21 @@ def ask(
     ``user_id`` do ``verify_api_key`` trả về, nên request không có API key
     hợp lệ sẽ dừng ở 401 trước khi chạm vào bất cứ dòng nào ở đây.
     """
-    raise NotImplementedError("TODO (CP3/CP4): cài đặt /ask")
+    limiter.check(user_id)  # Chặn request quá nhanh trước khi thực hiện các thao tác tiếp theo.
+    guard.check(user_id)  # Chặn user đã hết ngân sách trước khi gọi mock LLM.
+    history = store.get_history(user_id)  # Tải lịch sử hội thoại riêng của user để đưa vào prompt.
+    result = ask_llm(payload.question, history)  # Sinh câu trả lời và ước tính token cùng chi phí.
+    store.append(user_id, "user", payload.question)  # Lưu câu hỏi của user vào lịch sử.
+    store.append(user_id, "assistant", result["answer"])  # Lưu câu trả lời để dùng ở lượt hội thoại sau.
+    guard.record(user_id, result["cost_usd"])  # Cộng chi phí lượt này vào ngân sách tháng.
+    log_event("ask_completed", user_id=user_id, tokens_in=result["tokens_in"], tokens_out=result["tokens_out"], cost_usd=result["cost_usd"])  # Ghi log có cấu trúc sau khi xử lý thành công.
+    return {  # Tạo response JSON chứa câu trả lời và thông tin sử dụng.
+        "answer": result["answer"],  # Trả nội dung phản hồi từ mock LLM.
+        "user_id": user_id,  # Cho client biết user nào được gắn với request.
+        "history_length": len(history),  # Báo số lượt cũ đã được đưa vào prompt trước câu hỏi hiện tại.
+        "cost_usd": result["cost_usd"],  # Trả chi phí ước tính của lượt này.
+        "tokens": {"in": result["tokens_in"], "out": result["tokens_out"]},  # Nhóm số token đầu vào và đầu ra.
+    }  # FastAPI mã hóa dict thành response JSON.
 
 
 if __name__ == "__main__":

@@ -51,7 +51,10 @@ class ConversationStore:
         Trả ``True`` nếu thành công, ``False`` nếu có bất kỳ Exception nào
         (mất mạng, sai mật khẩu, Redis chưa khởi động...).
         """
-        raise NotImplementedError("TODO (CP4): cài đặt ping")
+        try:  # Bọc kiểm tra kết nối để Redis lỗi không làm endpoint readiness văng exception.
+            return bool(self.client.ping())  # Trả trạng thái ping của Redis dưới dạng boolean.
+        except Exception:  # Bắt lỗi kết nối/xác thực phổ biến từ mọi Redis client.
+            return False  # Báo dependency chưa sẵn sàng để load balancer ngừng gửi traffic.
 
     def append(self, user_id: str, role: str, content: str) -> None:
         """Ghi thêm một lượt vào lịch sử.
@@ -65,7 +68,11 @@ class ConversationStore:
           3. ``self.client.expire(key, HISTORY_TTL_SECONDS)`` — hội thoại cũ
              tự hết hạn, khỏi phải dọn tay.
         """
-        raise NotImplementedError("TODO (CP4): cài đặt append")
+        key = self._key(user_id)  # Tách danh sách lịch sử của từng user trong Redis.
+        message = json.dumps({"role": role, "content": content}, ensure_ascii=False)  # Mã hóa message JSON và giữ nguyên Unicode.
+        self.client.rpush(key, message)  # Thêm lượt mới vào cuối danh sách để lịch sử giữ thứ tự cũ đến mới.
+        self.client.ltrim(key, -HISTORY_MAX_MESSAGES, -1)  # Giữ lại tối đa các message mới nhất để giới hạn bộ nhớ/prompt.
+        self.client.expire(key, HISTORY_TTL_SECONDS)  # Tự hết hạn lịch sử không hoạt động sau bảy ngày.
 
     def get_history(self, user_id: str) -> list[dict]:
         """Đọc lịch sử hội thoại, cũ nhất trước.
@@ -73,7 +80,8 @@ class ConversationStore:
         TODO (CP4): ``self.client.lrange(key, 0, -1)`` rồi ``json.loads``
         từng phần tử. Chưa có gì → trả về list rỗng.
         """
-        raise NotImplementedError("TODO (CP4): cài đặt get_history")
+        messages = self.client.lrange(self._key(user_id), 0, -1)  # Đọc toàn bộ message theo thứ tự ghi từ Redis List.
+        return [json.loads(message) for message in messages]  # Giải mã từng JSON thành dict; key rỗng tự thành list rỗng.
 
     def clear(self, user_id: str) -> None:
         """CHO SẴN — xóa lịch sử của một user."""

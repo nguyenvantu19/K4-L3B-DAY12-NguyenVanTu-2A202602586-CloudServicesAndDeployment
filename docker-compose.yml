@@ -35,10 +35,23 @@ services:
       timeout: 3s
       retries: 5
 
-  # TODO (CP2): khai báo service `agent` ở đây
-  # agent:
-  #   build: .
-  #   ...
+  agent: # Định nghĩa service API agent trong stack Compose.
+    build: . # Build image bằng Dockerfile ở thư mục dự án.
+    restart: unless-stopped # Tự khởi động lại service nếu lỗi hoặc Docker khởi động lại.
+    ports: # Khai báo cổng host và cổng container.
+      - "${PORT:-8000}:${PORT:-8000}" # Dùng PORT nếu có, nếu không mặc định host/container cùng cổng 8000.
+    environment: # Truyền cấu hình lúc chạy, không ghi secret vào Dockerfile hay image.
+      PORT: "${PORT:-8000}" # Đưa cổng đã chọn vào ứng dụng và healthcheck của Dockerfile.
+      AGENT_API_KEY: "${AGENT_API_KEY:?Set AGENT_API_KEY in .env}" # Lấy secret từ môi trường/.env và báo lỗi nếu chưa khai báo.
+      REDIS_URL: "redis://redis:6379/0" # Dùng tên service redis làm hostname trên mạng Compose.
+    depends_on: # Khai báo dependency khởi động của agent.
+      redis: # Chờ Redis sẵn sàng trước khi agent bắt đầu.
+        condition: service_healthy # Dựa vào healthcheck redis-cli ping đã cấu hình phía trên.
+    healthcheck: # Cho Compose biết trạng thái sức khỏe của API agent.
+      test: ["CMD", "python", "-c", "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:'+os.getenv('PORT','8000')+'/health',timeout=2)"] # Gọi liveness endpoint trong container.
+      interval: 30s # Kiểm tra định kỳ mỗi 30 giây.
+      timeout: 3s # Đánh dấu lần kiểm tra thất bại nếu quá 3 giây.
+      retries: 3 # Đánh dấu unhealthy sau 3 lần thất bại liên tiếp.
 
 volumes:
   redis-data:

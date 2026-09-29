@@ -1,6 +1,28 @@
-# TODO (CP2): file này quyết định thứ KHÔNG được copy vào image.
-# Bỏ sót .env = leak secret vào image. Bỏ sót .git = image phình to.
-# Bổ sung đủ các mục còn thiếu — xem tests/test_cp2.py để biết yêu cầu.
-
 .git
+# Giải thích dòng trước: loại metadata Git khỏi build context để tránh làm image/context lớn.
 .gitignore
+# Giải thích dòng trước: file cấu hình Git không cần thiết trong runtime image.
+.env
+# Giải thích dòng trước: loại file chứa secret cục bộ để không đóng gói khóa vào image.
+.env.*
+# Giải thích dòng trước: loại các biến thể .env khác cũng có thể chứa secret.
+!.env.example
+# Giải thích dòng trước: cho phép giữ lại mẫu cấu hình không chứa secret thật.
+.venv
+# Giải thích dòng trước: loại môi trường Python cục bộ vốn không phù hợp với Linux container.
+venv
+# Giải thích dòng trước: loại môi trường ảo nếu dùng tên thư mục ngắn.
+__pycache__
+# Giải thích dòng trước: loại bytecode Python sinh ra trên máy phát triển.
+*.py[cod]
+# Giải thích dòng trước: loại các biến thể file bytecode/cache Python.
+.pytest_cache
+# Giải thích dòng trước: loại dữ liệu cache của pytest khỏi image.
+.mypy_cache
+# Giải thích dòng trước: loại cache phân tích kiểu không cần lúc chạy.
+.ruff_cache
+# Giải thích dòng trước: loại cache của Ruff khỏi build context.
+tests
+# Giải thích dòng trước: không đưa bộ test vào image runtime.
+screenshots
+# Giải thích dòng trước: không đưa ảnh minh chứng vào image chạy service.

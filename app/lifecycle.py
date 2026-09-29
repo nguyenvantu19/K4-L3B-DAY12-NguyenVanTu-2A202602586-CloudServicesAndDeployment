@@ -44,7 +44,10 @@ class Lifecycle:
         tham số này. Không làm gì nặng ở đây (không gọi mạng, không ghi file)
         — handler chạy xen giữa bytecode.
         """
-        raise NotImplementedError("TODO (CP4): cài đặt request_shutdown")
+        self.shutting_down = True  # Báo cho health/readiness probe ngừng đưa traffic mới vào instance.
+        previous = self._previous.get(signum)  # Tìm signal handler đã được đăng ký trước handler của ứng dụng.
+        if callable(previous):  # Chỉ chuyển tiếp nếu handler cũ có thể được gọi như hàm.
+            previous(signum, frame)  # Cho Uvicorn hoặc handler nền tảng thực hiện quy trình dừng server.
 
     def install(self) -> None:
         """Đăng ký handler cho SIGTERM và SIGINT, nhớ lại handler cũ.
@@ -56,7 +59,9 @@ class Lifecycle:
 
         SIGTERM: orchestrator yêu cầu tắt. SIGINT: bạn bấm Ctrl+C.
         """
-        raise NotImplementedError("TODO (CP4): cài đặt install")
+        for sig in (signal.SIGTERM, signal.SIGINT):  # Theo dõi cả tín hiệu dừng từ orchestrator và Ctrl+C.
+            self._previous[sig] = signal.getsignal(sig)  # Lưu handler hiện tại để có thể chuyển tiếp sau này.
+            signal.signal(sig, self.request_shutdown)  # Đăng ký handler ứng dụng để bật cờ shutdown.
 
 
 # Một instance dùng chung cho cả app

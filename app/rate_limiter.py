@@ -36,7 +36,10 @@ class RateLimiter:
              ``self.client.zremrangebyscore(key, 0, now - WINDOW_SECONDS)``
           3. Trả về ``self.client.zcard(key)``
         """
-        raise NotImplementedError("TODO (CP3): cài đặt hit_count")
+        now = now if now is not None else time.time()  # Dùng thời gian truyền vào khi test hoặc thời gian hiện tại khi chạy thật.
+        key = self._key(user_id)  # Chọn sorted set riêng của người dùng này.
+        self.client.zremrangebyscore(key, 0, now - WINDOW_SECONDS)  # Xóa request đã ra khỏi cửa sổ 60 giây.
+        return int(self.client.zcard(key))  # Đếm số request còn lại trong cửa sổ trượt.
 
     def check(self, user_id: str, now: float | None = None) -> None:
         """Cho qua nếu còn quota, ngược lại raise 429.
@@ -56,4 +59,14 @@ class RateLimiter:
         Lưu ý thứ tự: **kiểm tra trước, ghi nhận sau**. Ghi trước rồi mới đếm
         sẽ chặn nhầm ngay ở request thứ ``limit``.
         """
-        raise NotImplementedError("TODO (CP3): cài đặt check")
+        now = now if now is not None else time.time()  # Lấy thời điểm thống nhất để đếm và ghi nhận request.
+        if self.hit_count(user_id, now) >= self.limit:  # Từ chối request nếu user đã dùng hết hạn mức trong cửa sổ.
+            raise HTTPException(  # Báo giới hạn tốc độ bằng HTTP 429.
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,  # Dùng status chuẩn cho rate limit.
+                detail="rate limit exceeded",  # Giải thích ngắn lý do request bị từ chối.
+                headers={"Retry-After": str(WINDOW_SECONDS)},  # Gợi ý client chờ hết cửa sổ trước khi thử lại.
+            )  # Kết thúc tạo lỗi HTTP.
+        key = self._key(user_id)  # Lấy key Redis tương ứng với user hiện tại.
+        member = f"{now}:{uuid.uuid4().hex}"  # Tạo member duy nhất để request cùng thời điểm không ghi đè nhau.
+        self.client.zadd(key, {member: now})  # Lưu request với timestamp làm score để lọc theo thời gian.
+        self.client.expire(key, WINDOW_SECONDS)  # Tự dọn key nếu không còn request mới trong một phút.
