@@ -22,7 +22,7 @@ Repo đã có `render.yaml` làm Blueprint để Render tạo web service và Re
 
 1. Push repo cá nhân lên GitHub; đảm bảo `render.yaml`, `Dockerfile` và các thay đổi CP1–CP4 đã được đẩy lên.
 2. Đăng nhập Render, chọn **New → Blueprint** rồi kết nối tài khoản GitHub nếu được yêu cầu.
-3. Chọn repository của bài lab. Render sẽ đọc `render.yaml` và hiển thị các resource sẽ tạo: web service `day12-agent` và Redis `day12-redis`.
+3. Chọn repository của bài lab. Render sẽ đọc `render.yaml` và hiển thị các resource sẽ tạo: web service `day12-agent` và Key Value `day12-redis` (dịch vụ tương thích Redis).
 4. Xem lại cấu hình rồi tạo Blueprint. Vì `AGENT_API_KEY` được đánh dấu `sync: false`, nhập key mạnh đã tạo ở bước 1 khi Render yêu cầu. Không commit key vào repo.
 5. Chờ Render tạo Redis, build Docker image và deploy web service. Mở mục **Events** hoặc **Logs** nếu có bước thất bại.
 6. Trong trang Environment của web service, kiểm tra các biến `AGENT_API_KEY`, `REDIS_URL`, `RATE_LIMIT_PER_MINUTE`, `MONTHLY_BUDGET_USD` và `LOG_LEVEL` đã được thiết lập. `render.yaml` khai báo sẵn các biến này và nối `REDIS_URL` tới Redis service.

@@ -25,7 +25,7 @@ services:
           type: redis
           property: connectionString
 
-  - type: redis
+  - type: keyvalue # Render's current Redis-compatible managed service type; redis is its deprecated alias.
     name: day12-redis
     plan: free
     ipAllowList: []
